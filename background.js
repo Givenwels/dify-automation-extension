@@ -1180,9 +1180,26 @@ async function runAgent(port, s, userMsg, history, st) {
       throw e;
     }
     messages.push(msg);
+    // 编造检测：一次工具都没调，却声称"发布成功/交付报告/app_id"——这是模型在编故事
+    if (!msg.tool_calls?.length && !st.toolsUsed && /发布成功|交付报告|创建成功|app[_ ]?id/i.test(msg.content || '')) {
+      if (!st.nudged) {
+        st.nudged = true;
+        messages.push({
+          role: 'user',
+          content: '[系统] 你上面的回复是编造的：本次会话你从未调用过任何工具，不存在你声称的那个应用。禁止编造结果。现在必须真正调用工具执行：先 list_models 确认模型，再 create_workflow 创建，再 run_workflow 测试，最后 publish_workflow。重新开始执行。',
+        });
+        continue;
+      }
+      port.postMessage({
+        type: 'error',
+        text: '当前模型（' + s.model + '）连续两次拒绝调用工具、只编造结果——它大概率不支持工具调用。请到 ⚙ 把模型切回已验证的 MiMo 2.5（干活模式实测可用），然后重新发需求。',
+      });
+      return;
+    }
     if (msg.tool_calls && msg.tool_calls.length) {
       for (const tc of msg.tool_calls) {
         if (st.cancelled) { port.postMessage({ type: 'stopped' }); return; }
+        st.toolsUsed = true;
         let args = {};
         try { args = JSON.parse(tc.function.arguments || '{}'); } catch { /* 空参数 */ }
         port.postMessage({ type: 'tool', name: tc.function.name, args });
@@ -1326,7 +1343,7 @@ chrome.runtime.onConnect.addListener((port) => {
         }
         return;
       }
-      const st = { cancelled: false, controller: new AbortController() };
+      const st = { cancelled: false, controller: new AbortController(), toolsUsed: false, nudged: false };
       runStates.set(port, st);
       try {
         await runAgent(port, s, m.message, m.history || [], st);

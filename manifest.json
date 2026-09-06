@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dify 自动化",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "对话式 AI 工作流工程师：描述需求，自动在 Dify 上创建、修改、测试工作流",
   "permissions": ["storage", "sidePanel", "tabs", "scripting", "cookies"],
   "host_permissions": ["http://*/*", "https://*/*"],
